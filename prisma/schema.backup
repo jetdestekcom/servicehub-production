@@ -1,0 +1,334 @@
+// Prisma Schema for Production with PostgreSQL
+// Optimized for PostgreSQL for production deployment
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  password      String?
+  role          Role      @default(CUSTOMER)
+  phone         String?
+  isActive      Boolean   @default(true)
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret String?
+  backupCodes   String?
+  joinDate      DateTime  @default(now())
+  lastActive    DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Zusätzliche Felder für Provider
+  bio           String?
+  location      String?
+  rating        Float     @default(0)
+  reviewCount   Int       @default(0)
+  isVerified    Boolean   @default(false)
+  responseTime  Int?      // in Minuten
+  completionRate Float?   // 0-100
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  services      Service[]
+  bookings      Booking[]
+  reviews       Review[]
+  sentMessages  Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+  notifications Notification[]
+  favorites     String?   // JSON string für SQLite
+  verificationRequests VerificationRequest[]
+  securityEvents SecurityEvent[]
+  reports       Report[]
+  trainingEnrollments UserTrainingEnrollment[]
+  subscriptionServices SubscriptionService[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  price       Float
+  category    String
+  location    String
+  images      String   @default("[]") // JSON string für SQLite
+  tags        String   @default("[]") // JSON string für SQLite
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Zusätzliche Felder für Services
+  rating      Float    @default(0)
+  reviewCount Int      @default(0)
+  isVerified  Boolean  @default(false)
+  isPremium   Boolean  @default(false)
+  isUrgent    Boolean  @default(false)
+  isPackage   Boolean  @default(false)
+  duration    Int?     // in Minuten
+  warranty    Int?     // in Monaten
+  insurance   Boolean  @default(false)
+  priceType   String   @default("FIXED") // FIXED oder HOURLY
+
+  // Provider relation
+  providerId  String
+  provider    User     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  // Relations
+  bookings    Booking[]
+  reviews     Review[]
+
+  @@map("services")
+}
+
+model Booking {
+  id        String      @id @default(cuid())
+  status    BookingStatus @default(PENDING)
+  startDate DateTime
+  endDate   DateTime?
+  totalPrice Float
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relations
+  customerId String
+  customer   User    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  serviceId  String
+  service    Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  // Relations
+  reviews    Review[]
+
+  @@map("bookings")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  customerId String
+  customer   User    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  serviceId  String
+  service    Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  bookingId  String
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  type      String   @default("text")
+  isRead    Boolean  @default(false)
+  bookingId String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  senderId   String
+  sender     User    @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  receiverId String
+  receiver   User    @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// Neue Models für erweiterte Funktionalität
+
+model Report {
+  id          String   @id @default(cuid())
+  reporterId  String
+  type        String   // SERVICE, USER, BOOKING, REVIEW, MESSAGE
+  targetId    String
+  reason      String
+  description String?
+  evidence    String?  // JSON string für SQLite
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model VerificationRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // identity, business, professional, insurance, certification
+  data      String   // JSON string für SQLite
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("verification_requests")
+}
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  userId      String?
+  type        String   // LOGIN_FAILURE, SUSPICIOUS_ACTIVITY, RATE_LIMIT_EXCEEDED, etc.
+  severity    String   // LOW, MEDIUM, HIGH, CRITICAL
+  description String
+  details     String?  // JSON string für SQLite
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("security_events")
+}
+
+model TrainingCourse {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  difficulty  String   // BEGINNER, INTERMEDIATE, ADVANCED
+  duration    Int      // in Minuten
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  lessons     TrainingLesson[]
+  enrollments UserTrainingEnrollment[]
+
+  @@map("training_courses")
+}
+
+model TrainingLesson {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  content   String
+  order     Int
+  duration  Int      // in Minuten
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  // Relations
+  course TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("training_lessons")
+}
+
+model UserTrainingEnrollment {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  progress  Int      @default(0) // 0-100
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("user_training_enrollments")
+}
+
+model SubscriptionService {
+  id          String   @id @default(cuid())
+  providerId  String
+  title       String
+  description String
+  category    String
+  price       Float
+  frequency   String   // WEEKLY, MONTHLY, QUARTERLY, YEARLY
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  provider User @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("subscription_services")
+}
+
+// Enums
+enum Role {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
