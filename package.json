@@ -9,7 +9,8 @@
     "start:low-memory": "NODE_OPTIONS='--max-old-space-size=1024 --max-semi-space-size=32' next start",
     "start:ultra-low": "NODE_OPTIONS='--max-old-space-size=256 --max-semi-space-size=8' next start",
     "start:minimal": "NODE_OPTIONS='--max-old-space-size=128 --max-semi-space-size=4' next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "auto-commit": "node auto-commit.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.893.0",
@@ -52,6 +53,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.21",
+    "chokidar": "^4.0.3",
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
     "postcss": "^8.5.6",
